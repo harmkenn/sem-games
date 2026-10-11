@@ -229,11 +229,14 @@ def _render(state):
                 html.H4(f"🔔 Team {team + 1} Buzzed In! You have {GUESS_TIME_LIMIT} seconds."),
                 html.Div(f"Time remaining: {int(remaining)} seconds"),
                 _hint_components(character, state, hint_count),
-                dcc.RadioItems(
-                    id={"type": f"{PREFIX}-guess", "index": 0},
-                    options=[{"label": option, "value": option} for option in state["options"]],
-                    value=state.get("selected_option") or state["options"][0],
-                    labelStyle={"display": "block", "fontSize": "1.2rem", "margin": "0.5rem"},
+                html.Div(
+                    f"Selected guess: {state.get('selected_option') or 'No one selected yet'}",
+                    style={
+                        "fontSize": "1.2rem",
+                        "fontWeight": "bold",
+                        "margin": "0.8rem 0",
+                        "color": "#111827",
+                    },
                 ),
                 html.Button(
                     "Submit Guess",
