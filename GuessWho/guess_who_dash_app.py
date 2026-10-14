@@ -12,7 +12,6 @@ from who_data import character_data
 PREFIX = "gw"
 TEAM_COLORS = ["#FF4B4B", "#007BFF", "#2ECC71", "#F4B400"]
 HINT_REVEAL_INTERVAL = 15
-GUESS_TIME_LIMIT = 15
 WAITING = "waiting_for_hint_reveal"
 BUZZED = "buzzed_in_guess"
 REVEALED = "answer_revealed"
@@ -48,7 +47,6 @@ def _setup_question(state):
     state["selected_option"] = None
     state["question_answered"] = False
     state["buzzed_team"] = None
-    state["guess_started"] = None
     state["guessed_this_round"] = [False] * len(state["scores"])
     state["phase"] = WAITING
 
@@ -110,16 +108,11 @@ def _timer_display(state):
     ):
         return ""
     character = state["questions"][state["question_index"]]
-    now = time.time()
-    elapsed = _elapsed(state, now)
+    elapsed = _elapsed(state, time.time())
     hint_count = _hints_to_show(character, elapsed)
     points = max(100, 500 - hint_count * 100)
-    text = f"⏱️ Time: {int(elapsed)}s | Value: {points} pts"
-    if state["phase"] == BUZZED:
-        remaining = max(0, GUESS_TIME_LIMIT - (now - state["guess_started"]))
-        text += f" | Guess time remaining: {int(remaining)}s"
     return html.Div(
-        text,
+        f"⏱️ Time: {int(elapsed)}s | Value: {points} pts",
         style={"fontSize": "1.5rem", "fontWeight": "bold", "color": "#D97706"},
     )
 
@@ -259,7 +252,7 @@ def _render(state):
         team = state["buzzed_team"]
         content.extend(
             [
-                html.H4(f"🔔 Team {team + 1} Buzzed In! You have {GUESS_TIME_LIMIT} seconds."),
+                html.H4(f"🔔 Team {team + 1} Buzzed In!"),
                 html.Div(
                     f"Selected guess: {state.get('selected_option') or 'No one selected yet'}",
                     style={
@@ -382,7 +375,6 @@ def register_callbacks(app):
                     now = time.time()
                     state["frozen_elapsed"] = _elapsed(state, now)
                     state["buzzed_team"] = index
-                    state["guess_started"] = now
                     state["phase"] = BUZZED
             elif action == f"{PREFIX}-submit" and state["phase"] == BUZZED:
                 team = state["buzzed_team"]
@@ -437,24 +429,8 @@ def register_callbacks(app):
                 state["phase"] = REVEALED
                 state["question_answered"] = True
 
-        guess_timed_out = (
-            state["phase"] == BUZZED
-            and time.time() - state["guess_started"] >= GUESS_TIME_LIMIT
-        )
-        if guess_timed_out:
-            team = state["buzzed_team"]
-            elapsed = state["frozen_elapsed"]
-            state["scores"][team] -= 100
-            state["guessed_this_round"][team] = True
-            state["buzzed_team"] = None
-            if all(state["guessed_this_round"]):
-                state["phase"] = REVEALED
-                state["question_answered"] = True
-            else:
-                state["phase"] = WAITING
-                state["question_started"] = time.time() - elapsed
         timer_tick = trigger == f"{PREFIX}-timer" and ticks is not None
-        if timer_tick and not guess_timed_out and state_was_initialized:
+        if timer_tick and state_was_initialized:
             return (
                 no_update,
                 no_update,
