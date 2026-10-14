@@ -3,7 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-from dash import Dash, Input, Output, dcc, html
+from dash import Dash, Input, Output, State, dcc, html
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -75,27 +75,49 @@ server = app.server
 
 app.layout = html.Div(
     [
+        dcc.Store(id="dark-mode-state", data=False, storage_type="local"),
         html.Header(
             [
-                html.H1("🎮 LDS Games Arcade"),
-                dcc.Dropdown(
-                    id="game-selector",
-                    options=[
-                        {"label": "🏠 Home", "value": "Home"},
-                        *[
-                            {"label": label, "value": game_key}
-                            for game_key, (_, label) in GAMES.items()
-                        ],
+                html.Div(
+                    [
+                        html.H1("🎮 LDS Games Arcade"),
+                        dcc.Dropdown(
+                            id="game-selector",
+                            options=[
+                                {"label": "🏠 Home", "value": "Home"},
+                                *[
+                                    {"label": label, "value": game_key}
+                                    for game_key, (_, label) in GAMES.items()
+                                ],
+                            ],
+                            value="Home",
+                            clearable=False,
+                            style={"maxWidth": "420px"},
+                        ),
                     ],
-                    value="Home",
-                    clearable=False,
-                    style={"maxWidth": "420px"},
+                    className="launcher-heading",
+                ),
+                html.Button(
+                    [
+                        html.Span(
+                            html.Span(className="theme-toggle__thumb"),
+                            className="theme-toggle__track",
+                        ),
+                        html.Span("Dark mode"),
+                    ],
+                    id="dark-mode-toggle",
+                    n_clicks=0,
+                    className="theme-toggle",
+                    role="switch",
+                    **{"aria-label": "Dark mode", "aria-checked": "false"},
                 ),
             ],
-            style={"marginBottom": "1.5rem"},
+            className="launcher-header",
         ),
         html.Main(id="game-content"),
     ],
+    id="app-shell",
+    className="app-shell",
     style={
         "fontFamily": "Arial, sans-serif",
         "width": "100%",
@@ -114,6 +136,27 @@ def render_game(game_key):
     if game_key == "Home":
         return html.Div("Select a game from the menu to begin.")
     return page_modules[game_key].layout()
+
+
+@app.callback(
+    Output("dark-mode-state", "data"),
+    Input("dark-mode-toggle", "n_clicks"),
+    State("dark-mode-state", "data"),
+    prevent_initial_call=True,
+)
+def update_dark_mode(_clicks, is_dark):
+    if not _clicks:
+        return bool(is_dark)
+    return not bool(is_dark)
+
+
+@app.callback(
+    Output("app-shell", "className"),
+    Output("dark-mode-toggle", "aria-checked"),
+    Input("dark-mode-state", "data"),
+)
+def apply_dark_mode(is_dark):
+    return ("app-shell dark-mode" if is_dark else "app-shell", str(bool(is_dark)).lower())
 
 
 if __name__ == "__main__":

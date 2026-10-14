@@ -1,0 +1,109 @@
+body {
+    margin: 0;
+    background: #f8fafc;
+}
+
+.app-shell {
+    min-height: 100vh;
+    color: #1f2937;
+    background: #f8fafc;
+    transition: background-color 160ms ease, color 160ms ease;
+}
+
+.launcher-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.launcher-heading h1 {
+    margin-top: 0;
+}
+
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex: 0 0 auto;
+    border: 0;
+    padding: 0.4rem;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+.theme-toggle__track {
+    display: inline-flex;
+    align-items: center;
+    width: 2.75rem;
+    height: 1.5rem;
+    padding: 0.15rem;
+    border-radius: 999px;
+    background: #94a3b8;
+    transition: background-color 160ms ease;
+}
+
+.theme-toggle__thumb {
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 30%);
+    transition: transform 160ms ease;
+}
+
+.theme-toggle:focus-visible {
+    outline: 3px solid #3b82f6;
+    outline-offset: 3px;
+    border-radius: 0.4rem;
+}
+
+.dark-mode {
+    color: #e5e7eb;
+    background: #111827;
+}
+
+.dark-mode .theme-toggle__track {
+    background: #2563eb;
+}
+
+.dark-mode .theme-toggle__thumb {
+    transform: translateX(1.25rem);
+}
+
+.dark-mode #game-content > div {
+    color: #e5e7eb;
+    background-color: #1f2937;
+}
+
+.dark-mode #game-content input,
+.dark-mode #game-content textarea,
+.dark-mode #game-content select {
+    color: #e5e7eb;
+    background-color: #374151;
+    border-color: #6b7280;
+}
+
+.dark-mode .Select-control,
+.dark-mode .Select-menu-outer,
+.dark-mode .Select-option,
+.dark-mode .Select-value-label,
+.dark-mode .Select-placeholder {
+    color: #e5e7eb !important;
+    background-color: #374151 !important;
+    border-color: #6b7280 !important;
+}
+
+@media (max-width: 600px) {
+    .app-shell {
+        padding: 1rem !important;
+    }
+
+    .launcher-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
