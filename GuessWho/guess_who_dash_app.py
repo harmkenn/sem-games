@@ -4,7 +4,7 @@ import random
 import re
 import time
 
-from dash import ALL, Input, Output, State, ctx, dcc, html
+from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 
 from who_data import character_data
 
@@ -102,6 +102,56 @@ def _hint_components(character, state, hint_count):
     )
 
 
+def _timer_display(state):
+    if (
+        not state
+        or not state.get("initialized")
+        or state["question_index"] >= len(state["questions"])
+    ):
+        return ""
+    character = state["questions"][state["question_index"]]
+    now = time.time()
+    elapsed = _elapsed(state, now)
+    hint_count = _hints_to_show(character, elapsed)
+    points = max(100, 500 - hint_count * 100)
+    text = f"⏱️ Time: {int(elapsed)}s | Value: {points} pts"
+    if state["phase"] == BUZZED:
+        remaining = max(0, GUESS_TIME_LIMIT - (now - state["guess_started"]))
+        text += f" | Guess time remaining: {int(remaining)}s"
+    return html.Div(
+        text,
+        style={"fontSize": "1.5rem", "fontWeight": "bold", "color": "#D97706"},
+    )
+
+
+def _hint_area(state):
+    if (
+        not state
+        or not state.get("initialized")
+        or state["phase"] == REVEALED
+        or state["question_index"] >= len(state["questions"])
+    ):
+        return ""
+    character = state["questions"][state["question_index"]]
+    elapsed = _elapsed(state, time.time())
+    return _hint_components(character, state, _hints_to_show(character, elapsed))
+
+
+def _answer_control(state):
+    if not state or not state.get("initialized") or state["phase"] != WAITING:
+        return ""
+    character = state["questions"][state["question_index"]]
+    elapsed = _elapsed(state, time.time())
+    if _hints_to_show(character, elapsed) != len(character["hints"]):
+        return ""
+    return html.Div(
+        [
+            html.Div("All hints revealed!"),
+            html.Button("Show Answer", id=f"{PREFIX}-show-answer"),
+        ]
+    )
+
+
 def _scoreboard(scores, final=False):
     return html.Div(
         [
@@ -144,10 +194,6 @@ def _render(state):
 
     question_number = state["question_index"] + 1
     character = state["questions"][state["question_index"]]
-    now = time.time()
-    elapsed = _elapsed(state, now)
-    hint_count = _hints_to_show(character, elapsed)
-    points = max(100, 500 - hint_count * 100)
     phase = state["phase"]
 
     content = [
@@ -176,10 +222,6 @@ def _render(state):
             },
         ),
         html.Hr(),
-        html.Div(
-            f"⏱️ Time: {int(elapsed)}s | Value: {points} pts",
-            style={"fontSize": "1.5rem", "fontWeight": "bold", "color": "#D97706"},
-        ),
     ]
     if phase == WAITING:
         content.append(
@@ -198,14 +240,6 @@ def _render(state):
                         style={"color": "#9A3412"},
                     )
                 )
-        content.append(_hint_components(character, state, hint_count))
-        if hint_count == len(character["hints"]):
-            content.extend(
-                [
-                    html.Div("All hints revealed!"),
-                    html.Button("Show Answer", id=f"{PREFIX}-show-answer"),
-                ]
-            )
         content.append(html.H4("Who's buzzing in?"))
         content.append(
             html.Div(
@@ -223,12 +257,9 @@ def _render(state):
         )
     elif phase == BUZZED:
         team = state["buzzed_team"]
-        remaining = max(0, GUESS_TIME_LIMIT - (now - state["guess_started"]))
         content.extend(
             [
                 html.H4(f"🔔 Team {team + 1} Buzzed In! You have {GUESS_TIME_LIMIT} seconds."),
-                html.Div(f"Time remaining: {int(remaining)} seconds"),
-                _hint_components(character, state, hint_count),
                 html.Div(
                     f"Selected guess: {state.get('selected_option') or 'No one selected yet'}",
                     style={
@@ -297,6 +328,9 @@ def layout():
                 ],
                 style={"display": "flex", "alignItems": "center", "gap": "1rem", "flexWrap": "wrap"},
             ),
+            html.Div(id=f"{PREFIX}-timer-display"),
+            html.Div(id=f"{PREFIX}-hints"),
+            html.Div(id=f"{PREFIX}-answer-control"),
             html.Div(id=f"{PREFIX}-body"),
         ]
     )
@@ -306,6 +340,9 @@ def register_callbacks(app):
     @app.callback(
         Output(f"{PREFIX}-state", "data"),
         Output(f"{PREFIX}-body", "children"),
+        Output(f"{PREFIX}-timer-display", "children"),
+        Output(f"{PREFIX}-hints", "children"),
+        Output(f"{PREFIX}-answer-control", "children"),
         Input(f"{PREFIX}-team-count", "value"),
         Input(f"{PREFIX}-new-game", "n_clicks"),
         Input(f"{PREFIX}-timer", "n_intervals"),
@@ -320,10 +357,11 @@ def register_callbacks(app):
         State(f"{PREFIX}-state", "data"),
         State({"type": f"{PREFIX}-guess", "index": ALL}, "value"),
     )
-    def update_game(team_count, _new_clicks, _ticks, _play_clicks, _option_clicks,
+    def update_game(team_count, _new_clicks, ticks, _play_clicks, _option_clicks,
                     _buzz_clicks, _clock_clicks, _show_clicks, guess_values,
                     _submit_clicks, _next_clicks, state, selected_guesses):
         trigger = ctx.triggered_id
+        state_was_initialized = bool(state and state.get("initialized"))
         if not state or not state.get("initialized"):
             state = _new_game(team_count or 2)
         elif trigger in (f"{PREFIX}-new-game", f"{PREFIX}-play-again"):
@@ -399,7 +437,11 @@ def register_callbacks(app):
                 state["phase"] = REVEALED
                 state["question_answered"] = True
 
-        if state["phase"] == BUZZED and time.time() - state["guess_started"] >= GUESS_TIME_LIMIT:
+        guess_timed_out = (
+            state["phase"] == BUZZED
+            and time.time() - state["guess_started"] >= GUESS_TIME_LIMIT
+        )
+        if guess_timed_out:
             team = state["buzzed_team"]
             elapsed = state["frozen_elapsed"]
             state["scores"][team] -= 100
@@ -411,4 +453,19 @@ def register_callbacks(app):
             else:
                 state["phase"] = WAITING
                 state["question_started"] = time.time() - elapsed
-        return state, _render(state)
+        timer_tick = trigger == f"{PREFIX}-timer" and ticks is not None
+        if timer_tick and not guess_timed_out and state_was_initialized:
+            return (
+                no_update,
+                no_update,
+                _timer_display(state),
+                _hint_area(state),
+                _answer_control(state),
+            )
+        return (
+            state,
+            _render(state),
+            _timer_display(state),
+            _hint_area(state),
+            _answer_control(state),
+        )
