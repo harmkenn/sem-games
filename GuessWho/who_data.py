@@ -449,4 +449,184 @@ character_data = [
             'Their final battle resulted in millions of deaths.'
         ]
     },
+    {
+        'character_name': 'Lachoneus',
+        'hints': [
+            'He was the chief governor of the Nephites during the Gadianton robber crisis.',
+            'He received a threatening letter from the robber leader Giddianhi.',
+            'He gathered his people together to prepare for the robbers’ attack.',
+            'He appointed Gidgiddoni as chief captain of the Nephite armies.'
+        ]
+    },
+    {
+        'character_name': 'Gidgiddoni',
+        'hints': [
+            'He was a Nephite prophet, chief judge, and military leader.',
+            'He commanded the armies gathered under Lachoneus.',
+            'He counseled the people to wait for the robbers rather than attack them in their own lands.',
+            'He led the pursuit of the robbers after their defeat.'
+        ]
+    },
+    {
+        'character_name': 'Giddianhi',
+        'hints': [
+            'He led the Gadianton robbers during the years before Christ’s visit to the Americas.',
+            'He sent a letter demanding that Lachoneus surrender the Nephite lands.',
+            'He led the robbers in battle against the gathered Nephites.',
+            'He was overtaken and killed while fleeing the battle.'
+        ]
+    },
+    {
+        'character_name': 'Zemnarihah',
+        'hints': [
+            'He became a leader of the Gadianton robbers after Giddianhi.',
+            'He led a prolonged siege against the Nephites.',
+            'He ordered his people to withdraw toward the land northward.',
+            'After his capture, he was hanged and the tree was cut down.'
+        ]
+    },
+    {
+        'character_name': 'Abish',
+        'hints': [
+            'She was a Lamanite woman who had been converted to the Lord years earlier.',
+            'Her conversion followed a remarkable vision experienced by her father.',
+            'She recognized the significance when King Lamoni, the queen, and Ammon fell to the earth.',
+            'She gathered the people so they could witness what had happened.'
+        ]
+    },
+    {
+        'character_name': 'Zoram',
+        'hints': [
+            'He was a servant of Laban in Jerusalem.',
+            'He met Nephi while Nephi was disguised in Laban’s clothing.',
+            'He agreed to travel with Lehi’s family to the promised land.',
+            'He became the leader of the group that traveled with Lehi’s family.'
+        ]
+    },
+    {
+        'character_name': 'Ishmael',
+        'hints': [
+            'He and his household were brought from Jerusalem into the wilderness by Lehi’s sons.',
+            'His family joined Lehi’s family on the journey to the promised land.',
+            'His daughters married sons of Lehi.',
+            'He died during the wilderness journey.'
+        ]
+    },
+    {
+        'character_name': 'King Lamoni',
+        'hints': [
+            'He was a Lamanite king in the land of Ishmael.',
+            'Ammon served him and defended his flocks at the waters of Sebus.',
+            'He fell to the earth after hearing Ammon teach about God.',
+            'His conversion helped open the way for missionary work among his people.'
+        ]
+    },
+    {
+        'character_name': 'Lamoni’s Father',
+        'hints': [
+            'He was the father of King Lamoni and king over the Lamanites.',
+            'He initially feared that Ammon had killed his son.',
+            'Aaron taught him about God, the Creation, and the plan of redemption.',
+            'The Book of Mormon does not record his personal name.'
+        ]
+    },
+    {
+        'character_name': 'Anti-Nephi-Lehi',
+        'hints': [
+            'He was a Lamanite king who took this name after his people’s conversion.',
+            'His people buried their weapons as a covenant not to shed blood.',
+            'He was the son of the king who was converted through Aaron’s teaching.',
+            'His people were later called the people of Anti-Nephi-Lehi.'
+        ]
+    },
+    {
+        'character_name': 'Lehonti',
+        'hints': [
+            'He led a Lamanite army encamped on Mount Antipas.',
+            'Amalickiah repeatedly tried to persuade him to come down from the mount.',
+            'He joined forces with Amalickiah to take command of the Lamanite army.',
+            'He died after Amalickiah had poison administered to him by degrees.'
+        ]
+    },
+    {
+        'character_name': 'Morianton',
+        'hints': [
+            'He led a group of Nephite dissenters who lived near the land of Lehi.',
+            'A dispute with a servant led his people to plan an escape toward the land northward.',
+            'Teancum and his men intercepted his people before they could reach Bountiful.',
+            'He was killed by Teancum after being captured.'
+        ]
+    },
+    {
+        'character_name': 'Paanchi',
+        'hints': [
+            'He was one of the sons of Pahoran who contended for the judgment-seat.',
+            'He lost the election to his brother Pahoran.',
+            'He led a group that sought to make him king.',
+            'He was condemned to death for his rebellion.'
+        ]
+    },
+    {
+        'character_name': 'Pacumeni',
+        'hints': [
+            'He was a son of Pahoran and brother of Paanchi.',
+            'He was one of the candidates for the judgment-seat after his father’s death.',
+            'He became chief judge after Pahoran was elected king-men.',
+            'He was killed when Coriantumr captured Zarahemla.'
+        ]
+    },
+    {
+        'character_name': 'Aminadab',
+        'hints': [
+            'He was a Nephite dissenter living among the Lamanites.',
+            'He recognized Nephi and Lehi when they were surrounded by fire in prison.',
+            'He told the people to look toward heaven and see what was happening.',
+            'He helped explain the words of Nephi and Lehi to the gathered Lamanites.'
+        ]
+    },
+    {
+        'character_name': 'Amaleki',
+        'hints': [
+            'He was the son of Abinadom and a record keeper.',
+            'He wrote the final account in the book of Omni.',
+            'He lived during the reign of King Benjamin.',
+            'He delivered the small plates to King Benjamin because he had no children to continue the record.'
+        ]
+    },
+    {
+        'character_name': 'Omni',
+        'hints': [
+            'He was the son of Jarom and received the small plates from his father.',
+            'He described himself as a man who had not kept the commandments as he should.',
+            'He recorded that he fought to preserve his people.',
+            'He passed the plates to his son Amaron.'
+        ]
+    },
+    {
+        'character_name': 'Jarom',
+        'hints': [
+            'He was the son of Enos and kept the small plates for many years.',
+            'He wrote that the Nephites prospered when they obeyed the commandments.',
+            'His record describes wars between the Nephites and Lamanites.',
+            'He passed the plates to his son Omni.'
+        ]
+    },
+    {
+        'character_name': 'Chemish',
+        'hints': [
+            'He was the son of Omni and brother of Amaron.',
+            'He wrote a brief entry in the book of Omni.',
+            'He said that his brother had given him the plates.',
+            'He passed the plates to his son Abinadom.'
+        ]
+    },
+    {
+        'character_name': 'Abinadom',
+        'hints': [
+            'He was the son of Chemish and a keeper of the small plates.',
+            'He wrote that he had seen much war between the Nephites and Lamanites.',
+            'He said the Nephites fought with their swords and their own strength.',
+            'He passed the plates to his son Amaleki.'
+        ]
+    },
 ]
