@@ -184,6 +184,7 @@ def layout():
                             html.Button("👁️ Reveal All", id="matching-reveal", n_clicks=0),
                             html.Button("🙈 Hide All", id="matching-hide", n_clicks=0),
                             html.Button("🔁 Restart Game", id="matching-restart", n_clicks=0),
+                            html.Button("⏭️ Next Guess", id="matching-reset-guess", n_clicks=0, disabled=True),
                         ],
                         style={"display": "flex", "gap": "0.5rem", "flexWrap": "wrap", "margin": "1rem 0"},
                     ),
@@ -210,18 +211,20 @@ def register_callbacks(app):
         Output("matching-status", "children"),
         Output("matching-scores", "children"),
         Output("matching-flip-interval", "disabled"),
+        Output("matching-reset-guess", "disabled"),
         Input({"type": "matching-card", "index": ALL}, "n_clicks"),
         Input("matching-new-game", "n_clicks"),
         Input("matching-reveal", "n_clicks"),
         Input("matching-hide", "n_clicks"),
         Input("matching-restart", "n_clicks"),
+        Input("matching-reset-guess", "n_clicks"),
         Input("matching-flip-interval", "n_intervals"),
         State("matching-pair-count", "value"),
         State("matching-team-count", "value"),
         State("matching-state", "data"),
         prevent_initial_call=True,
     )
-    def update_game(_card_clicks, _new, _reveal, _hide, _restart, _ticks, pair_count, team_count, data):
+    def update_game(_card_clicks, _new, _reveal, _hide, _restart, _reset_guess, _ticks, pair_count, team_count, data):
         game = data or _new_game(pair_count, team_count)
         trigger = ctx.triggered_id
 
@@ -233,8 +236,10 @@ def register_callbacks(app):
         elif trigger == "matching-hide":
             game["all_revealed"] = False
             game["revealed"] = []
-        elif trigger == "matching-flip-interval":
-            if game["flip_timer"] and time.time() - game["flip_timer"] >= 3:
+        elif trigger == "matching-flip-interval" or trigger == "matching-reset-guess":
+            if game["flip_timer"] and (
+                trigger == "matching-reset-guess" or time.time() - game["flip_timer"] >= 3
+            ):
                 game["revealed"] = []
                 game["current_team"] = (game["current_team"] + 1) % len(game["team_scores"])
                 game["flip_timer"] = None
@@ -265,5 +270,6 @@ def register_callbacks(app):
             _render_board(game),
             _render_status(game),
             _render_scores(game),
+            game["flip_timer"] is None,
             game["flip_timer"] is None,
         )
