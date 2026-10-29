@@ -283,12 +283,13 @@ def _new_game_state():
     return {
         "initialized": True,
         "index": 0,
-        "score": 0,
+        "current_team": 1,
+        "scores": {1: 0, 2: 0},
         "submitted": False,
         "answers": [],
         "results": [],
-        "placements": {},  # {slot_index: word}
-        "shuffled_bank": initial_shuffled,  # Retains stable random order per verse
+        "placements": {},
+        "shuffled_bank": initial_shuffled,
     }
 
 
@@ -302,7 +303,6 @@ def _render_verse(verse, answer_values=None, submitted=False, shuffled_bank=None
     seen = set()
     tokens = []
 
-    # Identify set of words currently placed in slots to hide them in word bank
     placed_words = set(w for w in answer_values if w)
 
     for token in _tokenize(verse["text"]):
@@ -311,10 +311,8 @@ def _render_verse(verse, answer_values=None, submitted=False, shuffled_bank=None
             idx = blank_map[token_lower]
             seen.add(token_lower)
             current_word = answer_values[idx] if len(answer_values) > idx else ""
-
-            # Slots are draggable if they hold a word and game is not submitted
             is_draggable = "true" if (current_word and not submitted) else "false"
-            
+
             tokens.append(
                 html.Div(
                     current_word if current_word else "_____",
@@ -346,14 +344,12 @@ def _render_verse(verse, answer_values=None, submitted=False, shuffled_bank=None
         if token and token[-1].isalnum():
             tokens.append(html.Span(" ", style={"whiteSpace": "pre-wrap"}))
 
-    # Use stored initial random order, fallback to newly shuffled if missing
     if not shuffled_bank:
         shuffled_bank = list(verse["blanks"])
         random.shuffle(shuffled_bank)
 
     word_bank = []
     for idx, word in enumerate(shuffled_bank):
-        # Hide word from word bank if currently placed in a slot
         is_placed = word in placed_words
         word_bank.append(
             html.Div(
@@ -421,11 +417,7 @@ def _render_verse(verse, answer_values=None, submitted=False, shuffled_bank=None
                                 },
                             ),
                         ],
-                        style={
-                            "minWidth": "220px",
-                            "maxWidth": "260px",
-                            "marginLeft": "1rem",
-                        },
+                        style={"minWidth": "220px", "maxWidth": "260px", "marginLeft": "1rem"},
                     ),
                 ],
                 style={"display": "flex", "alignItems": "flex-start", "gap": "1rem"},
@@ -439,11 +431,27 @@ def _render_game(state):
         return html.Div("Starting game…")
 
     if state["index"] >= len(VERSES):
-        total_possible = sum(len(verse["blanks"]) for verse in VERSES)
+        t1_score = state["scores"].get("1", state["scores"].get(1, 0))
+        t2_score = state["scores"].get("2", state["scores"].get(2, 0))
+
+        if t1_score > t2_score:
+            winner = "🏆 Team 1 Wins!"
+        elif t2_score > t1_score:
+            winner = "🏆 Team 2 Wins!"
+        else:
+            winner = "🤝 It's a Tie!"
+
         return html.Div(
             [
                 html.H2("🎉 Practice Complete!"),
-                html.Div(f"Final score: {state['score']} / {total_possible}", style={"fontSize": "1.5rem", "marginBottom": "1rem"}),
+                html.H3(winner, style={"color": "#2563EB", "margin": "1rem 0"}),
+                html.Div(
+                    [
+                        html.Div(f"🔵 Team 1 Final Score: {t1_score}", style={"fontSize": "1.2rem"}),
+                        html.Div(f"🔴 Team 2 Final Score: {t2_score}", style={"fontSize": "1.2rem"}),
+                    ],
+                    style={"marginBottom": "1.5rem", "display": "flex", "gap": "2rem"},
+                ),
                 html.Button("🔁 Start Again", id=f"{PREFIX}-restart", style={"padding": "0.75rem 1rem"}),
             ],
             style={"padding": "1rem", "maxWidth": "900px"},
@@ -452,12 +460,53 @@ def _render_game(state):
     verse = VERSES[state["index"]]
     answer_values = state.get("answers", [""] * len(verse["blanks"]))
     correct_answers = [word for word in verse["blanks"]]
+    current_team = state.get("current_team", 1)
+
+    t1_score = state["scores"].get("1", state["scores"].get(1, 0))
+    t2_score = state["scores"].get("2", state["scores"].get(2, 0))
+
+    team_color = "#2563EB" if current_team == 1 else "#DC2626"
 
     content = [
-        html.H3("Doctrinal Mastery Fill-In"),
         html.Div(
-            f"Verse {state['index'] + 1} of {len(VERSES)} • Score: {state['score']}",
-            style={"marginBottom": "1rem", "fontWeight": "bold", "color": "#1E3A8A"},
+            [
+                html.H3("Doctrinal Mastery Fill-In (2-Team Game)", style={"margin": "0"}),
+                html.Div(
+                    [
+                        html.Span(
+                            f"🔵 Team 1: {t1_score}",
+                            style={
+                                "fontWeight": "bold" if current_team == 1 else "normal",
+                                "color": "#2563EB",
+                                "padding": "0.4rem 0.8rem",
+                                "borderRadius": "6px",
+                                "backgroundColor": "#DBEAFE" if current_team == 1 else "transparent",
+                            },
+                        ),
+                        html.Span(
+                            f"🔴 Team 2: {t2_score}",
+                            style={
+                                "fontWeight": "bold" if current_team == 2 else "normal",
+                                "color": "#DC2626",
+                                "padding": "0.4rem 0.8rem",
+                                "borderRadius": "6px",
+                                "backgroundColor": "#FEE2E2" if current_team == 2 else "transparent",
+                            },
+                        ),
+                    ],
+                    style={"display": "flex", "gap": "1rem", "alignItems": "center"},
+                ),
+            ],
+            style={
+                "display": "flex",
+                "justifyContent": "space-between",
+                "alignItems": "center",
+                "marginBottom": "1rem",
+            },
+        ),
+        html.Div(
+            f"Verse {state['index'] + 1} of {len(VERSES)} • CURRENT TURN: TEAM {current_team}",
+            style={"marginBottom": "1rem", "fontWeight": "bold", "color": team_color, "fontSize": "1.1rem"},
         ),
         _render_verse(verse, answer_values, state.get("submitted", False), state.get("shuffled_bank")),
     ]
@@ -466,17 +515,18 @@ def _render_game(state):
         correct_count = sum(
             1 for value, expected in zip(answer_values, correct_answers) if value.strip().lower() == expected.lower()
         )
+        next_team = 2 if current_team == 1 else 1
         content.extend(
             [
                 html.Div(
-                    f"You got {correct_count} out of {len(correct_answers)} correct.",
+                    f"Team {current_team} got {correct_count} out of {len(correct_answers)} correct!",
                     style={
                         "marginTop": "1rem",
                         "padding": "0.8rem 1rem",
-                        "backgroundColor": "#DBEAFE",
+                        "backgroundColor": "#DBEAFE" if current_team == 1 else "#FEE2E2",
                         "borderRadius": "8px",
                         "fontWeight": "bold",
-                        "color": "#1E3A8A",
+                        "color": team_color,
                     },
                 ),
                 html.Div(
@@ -486,12 +536,20 @@ def _render_game(state):
                     ],
                     style={"marginTop": "0.8rem", "fontSize": "1rem"},
                 ),
-                html.Button("➡️ Next Verse", id=f"{PREFIX}-next", style={"marginTop": "1rem", "padding": "0.75rem 1rem"}),
+                html.Button(
+                    f"➡️ Next Verse (Pass to Team {next_team})",
+                    id=f"{PREFIX}-next",
+                    style={"marginTop": "1rem", "padding": "0.75rem 1rem"},
+                ),
             ]
         )
     else:
         content.append(
-            html.Button("✅ Check My Answers", id=f"{PREFIX}-submit", style={"marginTop": "1rem", "padding": "0.75rem 1rem"})
+            html.Button(
+                f"✅ Submit Answers for Team {current_team}",
+                id=f"{PREFIX}-submit",
+                style={"marginTop": "1rem", "padding": "0.75rem 1rem"},
+            )
         )
 
     return html.Div(content, style={"maxWidth": "1000px", "padding": "1rem"})
@@ -504,9 +562,9 @@ def layout():
             dcc.Store(id=f"{PREFIX}-drag-state", storage_type="memory", data={}),
             html.Div(
                 [
-                    html.H2("📖 Doctrinal Mastery Practice"),
-                    html.P("Fill in the missing words for each scripture. Drag words into blanks or between slots."),
-                    html.Button("▶ Start Practice", id=f"{PREFIX}-start", style={"padding": "0.75rem 1rem", "marginBottom": "1rem"}),
+                    html.H2("📖 Doctrinal Mastery 2-Team Challenge"),
+                    html.P("Take turns with Team 1 and Team 2 dragging words into place!"),
+                    html.Button("▶ Start 2-Team Game", id=f"{PREFIX}-start", style={"padding": "0.75rem 1rem", "marginBottom": "1rem"}),
                     html.Div(id=f"{PREFIX}-body"),
                 ],
                 style={"maxWidth": "1100px", "margin": "0 auto", "padding": "1.5rem"},
@@ -637,9 +695,11 @@ def register_callbacks(app):
                 for value, expected in zip(state["answers"], verse["blanks"])
                 if (value or "").strip().lower() == expected.lower()
             )
-            state["score"] += correct_count
+            current_team = str(state.get("current_team", 1))
+            state["scores"][current_team] = state["scores"].get(current_team, 0) + correct_count
             state["results"].append(
                 {
+                    "team": current_team,
                     "reference": verse["reference"],
                     "correct_count": correct_count,
                     "total": len(verse["blanks"]),
@@ -648,11 +708,11 @@ def register_callbacks(app):
         elif trigger == f"{PREFIX}-next":
             if state.get("submitted"):
                 state["index"] += 1
+                state["current_team"] = 2 if state.get("current_team", 1) == 1 else 1
                 state["submitted"] = False
                 state["answers"] = []
                 state["placements"] = {}
-                
-                # Generate new stable random shuffle for the next verse
+
                 if state["index"] < len(VERSES):
                     next_shuffled = list(VERSES[state["index"]]["blanks"])
                     random.shuffle(next_shuffled)
