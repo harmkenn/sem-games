@@ -277,8 +277,9 @@ VERSES = [
     },
 ]
 
-
 def _new_game_state():
+    initial_shuffled = list(VERSES[0]["blanks"])
+    random.shuffle(initial_shuffled)
     return {
         "initialized": True,
         "index": 0,
@@ -287,6 +288,7 @@ def _new_game_state():
         "answers": [],
         "results": [],
         "placements": {},  # {slot_index: word}
+        "shuffled_bank": initial_shuffled,  # Retains stable random order per verse
     }
 
 
@@ -294,7 +296,7 @@ def _tokenize(text):
     return re.findall(r"\b[\w']+\b|[^\w\s]", text)
 
 
-def _render_verse(verse, answer_values=None, submitted=False):
+def _render_verse(verse, answer_values=None, submitted=False, shuffled_bank=None):
     answer_values = answer_values or [""] * len(verse["blanks"])
     blank_map = {word.lower(): index for index, word in enumerate(verse["blanks"])}
     seen = set()
@@ -344,10 +346,13 @@ def _render_verse(verse, answer_values=None, submitted=False):
         if token and token[-1].isalnum():
             tokens.append(html.Span(" ", style={"whiteSpace": "pre-wrap"}))
 
-    shuffled_words = list(verse["blanks"])
+    # Use stored initial random order, fallback to newly shuffled if missing
+    if not shuffled_bank:
+        shuffled_bank = list(verse["blanks"])
+        random.shuffle(shuffled_bank)
 
     word_bank = []
-    for idx, word in enumerate(shuffled_words):
+    for idx, word in enumerate(shuffled_bank):
         # Hide word from word bank if currently placed in a slot
         is_placed = word in placed_words
         word_bank.append(
@@ -369,7 +374,7 @@ def _render_verse(verse, answer_values=None, submitted=False):
                     "userSelect": "none",
                     "textAlign": "center",
                     "boxShadow": "none" if is_placed else "0 2px 8px rgba(79,70,229,0.15)",
-                    "visibility": "hidden" if is_placed else "visible",  # Hides word when placed
+                    "visibility": "hidden" if is_placed else "visible",
                 },
             )
         )
@@ -454,7 +459,7 @@ def _render_game(state):
             f"Verse {state['index'] + 1} of {len(VERSES)} • Score: {state['score']}",
             style={"marginBottom": "1rem", "fontWeight": "bold", "color": "#1E3A8A"},
         ),
-        _render_verse(verse, answer_values, state.get("submitted", False)),
+        _render_verse(verse, answer_values, state.get("submitted", False), state.get("shuffled_bank")),
     ]
 
     if state.get("submitted"):
@@ -511,7 +516,6 @@ def layout():
 
 
 def register_callbacks(app):
-    # Client-side JavaScript logic to handle HTML5 drag-and-drop events dynamically
     app.clientside_callback(
         """
         function(children) {
@@ -523,10 +527,9 @@ def register_callbacks(app):
                 var draggedWord = null;
                 var sourceSlotIndex = null;
 
-                // Handle Drag Start for Word Bank items and Filled Slots
                 function handleDragStart(e) {
                     draggedWord = e.target.getAttribute('data-word');
-                    sourceSlotIndex = e.target.getAttribute('data-index'); // set if dragging from a slot
+                    sourceSlotIndex = e.target.getAttribute('data-index');
                     e.dataTransfer.setData('text/plain', draggedWord);
                     e.target.style.opacity = '0.5';
                 }
@@ -535,7 +538,6 @@ def register_callbacks(app):
                     e.target.style.opacity = '1.0';
                 }
 
-                // Add Drag Listeners to Words
                 words.forEach(function(word) {
                     word.removeEventListener('dragstart', handleDragStart);
                     word.removeEventListener('dragend', handleDragEnd);
@@ -543,7 +545,6 @@ def register_callbacks(app):
                     word.addEventListener('dragend', handleDragEnd);
                 });
 
-                // Add Drag & Drop Listeners to Slots
                 slots.forEach(function(slot) {
                     slot.removeEventListener('dragstart', handleDragStart);
                     slot.removeEventListener('dragend', handleDragEnd);
@@ -566,19 +567,15 @@ def register_callbacks(app):
                         e.preventDefault();
                         var targetIndex = slot.getAttribute('data-index');
                         
-                        // Read current placements from store or initialize empty object
                         var dragStore = dash_clientside.set_props ? 
                             JSON.parse(sessionStorage.getItem('dm-drag-state') || '{}') : {};
 
-                        // Clear word from previous slot if moving from another slot
                         if (sourceSlotIndex !== null && sourceSlotIndex !== undefined) {
                             delete dragStore[sourceSlotIndex];
                         }
 
-                        // Place word into target slot
                         dragStore[targetIndex] = draggedWord;
 
-                        // Update Dash Store
                         var storeEl = document.getElementById('dm-drag-state');
                         if (storeEl) {
                             dash_clientside.set_props('dm-drag-state', {data: dragStore});
@@ -586,7 +583,6 @@ def register_callbacks(app):
                     });
                 });
 
-                // Allow dragging back to the word bank to return/unplace a word
                 if (bank) {
                     bank.addEventListener('dragover', function(e) { e.preventDefault(); });
                     bank.addEventListener('drop', function(e) {
@@ -655,5 +651,11 @@ def register_callbacks(app):
                 state["submitted"] = False
                 state["answers"] = []
                 state["placements"] = {}
+                
+                # Generate new stable random shuffle for the next verse
+                if state["index"] < len(VERSES):
+                    next_shuffled = list(VERSES[state["index"]]["blanks"])
+                    random.shuffle(next_shuffled)
+                    state["shuffled_bank"] = next_shuffled
 
         return state, _render_game(state)
