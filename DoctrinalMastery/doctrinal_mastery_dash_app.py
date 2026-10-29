@@ -1,4 +1,4 @@
-"""Dash page for the Doctrinal Mastery scripture fill-in game."""
+"""Dash page for the Doctrinal Mastery scripture fill-in game with interactive Drag & Drop."""
 
 import json
 import random
@@ -18,50 +18,6 @@ STOPWORDS = {
     "were", "what", "when", "where", "which", "who", "why", "will", "with", "would",
     "ye", "you", "your", "yours"
 }
-
-
-def _build_spread_blanks(text, count=10):
-    words = []
-    seen = set()
-    for token in re.findall(r"\b[\w']+\b|[^\w\s]", text):
-        cleaned = token.strip(".,;:!?\"“”‘’()[]{}—–")
-        if not cleaned or cleaned.isdigit():
-            continue
-        lowered = cleaned.lower()
-        if lowered in STOPWORDS or lowered in seen:
-            continue
-        seen.add(lowered)
-        words.append(cleaned)
-
-    if len(words) <= count:
-        return words
-
-    selected = []
-    step = len(words) / count
-    for idx in range(count):
-        position = min(len(words) - 1, int(idx * step + (step / 2)))
-        selected.append(words[position])
-
-    result = []
-    seen = set()
-    for word in selected:
-        lowered = word.lower()
-        if lowered in seen:
-            continue
-        seen.add(lowered)
-        result.append(word)
-
-    if len(result) < count:
-        for word in words:
-            lowered = word.lower()
-            if lowered not in seen:
-                result.append(word)
-                seen.add(lowered)
-            if len(result) == count:
-                break
-
-    return result[:count]
-
 
 VERSES = [
     {
@@ -330,7 +286,7 @@ def _new_game_state():
         "submitted": False,
         "answers": [],
         "results": [],
-        "placements": {},
+        "placements": {},  # {slot_index: word}
     }
 
 
@@ -344,18 +300,25 @@ def _render_verse(verse, answer_values=None, submitted=False):
     seen = set()
     tokens = []
 
+    # Identify set of words currently placed in slots to hide them in word bank
+    placed_words = set(w for w in answer_values if w)
+
     for token in _tokenize(verse["text"]):
         token_lower = token.lower()
         if token_lower in blank_map and token_lower not in seen:
             idx = blank_map[token_lower]
             seen.add(token_lower)
             current_word = answer_values[idx] if len(answer_values) > idx else ""
+
+            # Slots are draggable if they hold a word and game is not submitted
+            is_draggable = "true" if (current_word and not submitted) else "false"
+            
             tokens.append(
                 html.Div(
                     current_word if current_word else "_____",
                     id={"type": f"{PREFIX}-slot", "index": idx},
                     className="dm-slot",
-                    draggable="false",
+                    draggable=is_draggable,
                     **{"data-index": str(idx), "data-word": current_word},
                     style={
                         "display": "inline-flex",
@@ -365,12 +328,13 @@ def _render_verse(verse, answer_values=None, submitted=False):
                         "padding": "0.35rem 0.7rem",
                         "margin": "0 0.2rem",
                         "borderRadius": "8px",
-                        "border": "2px dashed #0F172A",
-                        "backgroundColor": "#FFFFFF",
-                        "color": "#111827",
+                        "border": "2px dashed #0F172A" if not current_word else "2px solid #4F46E5",
+                        "backgroundColor": "#EEF2FF" if current_word else "#FFFFFF",
+                        "color": "#1E1B4B" if current_word else "#94A3B8",
                         "fontWeight": "bold",
                         "minHeight": "42px",
                         "verticalAlign": "middle",
+                        "cursor": "grab" if (current_word and not submitted) else "default",
                     },
                 )
             )
@@ -381,30 +345,34 @@ def _render_verse(verse, answer_values=None, submitted=False):
             tokens.append(html.Span(" ", style={"whiteSpace": "pre-wrap"}))
 
     shuffled_words = list(verse["blanks"])
-    random.shuffle(shuffled_words)
 
-    word_bank = [
-        html.Div(
-            word,
-            key=f"bank-{idx}",
-            id={"type": f"{PREFIX}-word", "index": idx, "word": word},
-            className="dm-word",
-            draggable="true",
-            **{"data-index": str(idx), "data-word": word},
-            style={
-                "padding": "0.6rem 0.9rem",
-                "borderRadius": "8px",
-                "backgroundColor": "#E0E7FF",
-                "border": "1px solid #818CF8",
-                "fontWeight": "bold",
-                "cursor": "grab",
-                "userSelect": "none",
-                "textAlign": "center",
-                "boxShadow": "0 2px 8px rgba(79,70,229,0.15)",
-            },
+    word_bank = []
+    for idx, word in enumerate(shuffled_words):
+        # Hide word from word bank if currently placed in a slot
+        is_placed = word in placed_words
+        word_bank.append(
+            html.Div(
+                word,
+                key=f"bank-{idx}",
+                id={"type": f"{PREFIX}-word", "index": idx, "word": word},
+                className="dm-word",
+                draggable="false" if (is_placed or submitted) else "true",
+                **{"data-index": str(idx), "data-word": word},
+                style={
+                    "padding": "0.6rem 0.9rem",
+                    "borderRadius": "8px",
+                    "backgroundColor": "#F1F5F9" if is_placed else "#E0E7FF",
+                    "border": "1px solid #CBD5E1" if is_placed else "1px solid #818CF8",
+                    "color": "#94A3B8" if is_placed else "#1E1B4B",
+                    "fontWeight": "bold",
+                    "cursor": "not-allowed" if (is_placed or submitted) else "grab",
+                    "userSelect": "none",
+                    "textAlign": "center",
+                    "boxShadow": "none" if is_placed else "0 2px 8px rgba(79,70,229,0.15)",
+                    "visibility": "hidden" if is_placed else "visible",  # Hides word when placed
+                },
+            )
         )
-        for idx, word in enumerate(shuffled_words)
-    ]
 
     return html.Div(
         [
@@ -435,6 +403,7 @@ def _render_verse(verse, answer_values=None, submitted=False):
                             html.Div("Word bank", style={"fontWeight": "bold", "marginBottom": "0.7rem"}),
                             html.Div(
                                 word_bank,
+                                id=f"{PREFIX}-word-bank",
                                 style={
                                     "display": "grid",
                                     "gridTemplateColumns": "repeat(auto-fit, minmax(120px, 1fr))",
@@ -443,6 +412,7 @@ def _render_verse(verse, answer_values=None, submitted=False):
                                     "backgroundColor": "#EEF2FF",
                                     "borderRadius": "10px",
                                     "border": "1px solid #C7D2FE",
+                                    "minHeight": "100px",
                                 },
                             ),
                         ],
@@ -530,7 +500,7 @@ def layout():
             html.Div(
                 [
                     html.H2("📖 Doctrinal Mastery Practice"),
-                    html.P("Fill in the missing nouns and verbs for each scripture. Drag the words into place from the side bank."),
+                    html.P("Fill in the missing words for each scripture. Drag words into blanks or between slots."),
                     html.Button("▶ Start Practice", id=f"{PREFIX}-start", style={"padding": "0.75rem 1rem", "marginBottom": "1rem"}),
                     html.Div(id=f"{PREFIX}-body"),
                 ],
@@ -541,6 +511,102 @@ def layout():
 
 
 def register_callbacks(app):
+    # Client-side JavaScript logic to handle HTML5 drag-and-drop events dynamically
+    app.clientside_callback(
+        """
+        function(children) {
+            setTimeout(function() {
+                var words = document.querySelectorAll('.dm-word[draggable="true"]');
+                var slots = document.querySelectorAll('.dm-slot');
+                var bank = document.getElementById('dm-word-bank');
+
+                var draggedWord = null;
+                var sourceSlotIndex = null;
+
+                // Handle Drag Start for Word Bank items and Filled Slots
+                function handleDragStart(e) {
+                    draggedWord = e.target.getAttribute('data-word');
+                    sourceSlotIndex = e.target.getAttribute('data-index'); // set if dragging from a slot
+                    e.dataTransfer.setData('text/plain', draggedWord);
+                    e.target.style.opacity = '0.5';
+                }
+
+                function handleDragEnd(e) {
+                    e.target.style.opacity = '1.0';
+                }
+
+                // Add Drag Listeners to Words
+                words.forEach(function(word) {
+                    word.removeEventListener('dragstart', handleDragStart);
+                    word.removeEventListener('dragend', handleDragEnd);
+                    word.addEventListener('dragstart', handleDragStart);
+                    word.addEventListener('dragend', handleDragEnd);
+                });
+
+                // Add Drag & Drop Listeners to Slots
+                slots.forEach(function(slot) {
+                    slot.removeEventListener('dragstart', handleDragStart);
+                    slot.removeEventListener('dragend', handleDragEnd);
+                    
+                    if (slot.getAttribute('draggable') === 'true') {
+                        slot.addEventListener('dragstart', handleDragStart);
+                        slot.addEventListener('dragend', handleDragEnd);
+                    }
+
+                    slot.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        slot.style.border = '2px dashed #4F46E5';
+                    });
+
+                    slot.addEventListener('dragleave', function(e) {
+                        slot.style.border = slot.getAttribute('data-word') ? '2px solid #4F46E5' : '2px dashed #0F172A';
+                    });
+
+                    slot.addEventListener('drop', function(e) {
+                        e.preventDefault();
+                        var targetIndex = slot.getAttribute('data-index');
+                        
+                        // Read current placements from store or initialize empty object
+                        var dragStore = dash_clientside.set_props ? 
+                            JSON.parse(sessionStorage.getItem('dm-drag-state') || '{}') : {};
+
+                        // Clear word from previous slot if moving from another slot
+                        if (sourceSlotIndex !== null && sourceSlotIndex !== undefined) {
+                            delete dragStore[sourceSlotIndex];
+                        }
+
+                        // Place word into target slot
+                        dragStore[targetIndex] = draggedWord;
+
+                        // Update Dash Store
+                        var storeEl = document.getElementById('dm-drag-state');
+                        if (storeEl) {
+                            dash_clientside.set_props('dm-drag-state', {data: dragStore});
+                        }
+                    });
+                });
+
+                // Allow dragging back to the word bank to return/unplace a word
+                if (bank) {
+                    bank.addEventListener('dragover', function(e) { e.preventDefault(); });
+                    bank.addEventListener('drop', function(e) {
+                        e.preventDefault();
+                        if (sourceSlotIndex !== null && sourceSlotIndex !== undefined) {
+                            var dragStore = JSON.parse(sessionStorage.getItem('dm-drag-state') || '{}');
+                            delete dragStore[sourceSlotIndex];
+                            dash_clientside.set_props('dm-drag-state', {data: dragStore});
+                        }
+                    });
+                }
+            }, 100);
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output(f"{PREFIX}-drag-state", "id"),
+        Input(f"{PREFIX}-body", "children"),
+        prevent_initial_call=True,
+    )
+
     @app.callback(
         Output(f"{PREFIX}-state", "data"),
         Output(f"{PREFIX}-body", "children"),
