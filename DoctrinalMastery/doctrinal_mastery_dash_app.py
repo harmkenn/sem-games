@@ -155,16 +155,22 @@ VERSES = [
     },
 ]
 
-# List of all 24 scripture references for selection
+# List of all 24 scripture references sorted for dropdown selection
 ALL_REFERENCES = sorted([v["reference"] for v in VERSES])
 
 
 def _new_game_state():
-    initial_shuffled = list(VERSES[0]["blanks"])
+    verse_indices = list(range(len(VERSES)))
+    random.shuffle(verse_indices)  # Randomize scripture sequence for this game
+
+    first_verse_index = verse_indices[0]
+    initial_shuffled = list(VERSES[first_verse_index]["blanks"])
     random.shuffle(initial_shuffled)
+
     return {
         "initialized": True,
         "index": 0,
+        "verse_order": verse_indices,
         "current_team": 1,
         "scores": {1: 0, 2: 0},
         "submitted": False,
@@ -260,7 +266,7 @@ def _render_verse(verse, answer_values=None, submitted=False, shuffled_bank=None
 
     return html.Div(
         [
-            # Scripture Selection Section
+            # Scripture Reference Dropdown
             html.Div(
                 [
                     html.Label(
@@ -278,7 +284,7 @@ def _render_verse(verse, answer_values=None, submitted=False, shuffled_bank=None
                 ],
                 style={"backgroundColor": "#F1F5F9", "padding": "1rem", "borderRadius": "10px", "marginBottom": "1.2rem"},
             ),
-            # Verse & Word Bank Container
+            # Verse & Word Bank Section
             html.Div(
                 [
                     html.Div(
@@ -352,7 +358,9 @@ def _render_game(state):
             style={"padding": "1rem", "maxWidth": "900px"},
         )
 
-    verse = VERSES[state["index"]]
+    current_verse_idx = state["verse_order"][state["index"]]
+    verse = VERSES[current_verse_idx]
+
     answer_values = state.get("answers", [""] * len(verse["blanks"]))
     correct_answers = [word for word in verse["blanks"]]
     current_team = state.get("current_team", 1)
@@ -415,7 +423,7 @@ def _render_game(state):
         total_round_pts = correct_words + ref_points
         next_team = 2 if current_team == 1 else 1
 
-        correct_ref_text = verse['reference']
+        correct_ref_text = verse["reference"]
         ref_status_msg = "✅ Correct (+5 pts)" if is_ref_correct else f"❌ Incorrect (Correct was: {correct_ref_text})"
 
         content.extend(
@@ -593,20 +601,21 @@ def register_callbacks(app):
         elif trigger == f"{PREFIX}-drag-state":
             placements = drag_state or {}
             state["placements"] = placements
-            verse = VERSES[state["index"]]
+            current_verse_idx = state["verse_order"][state["index"]]
+            verse = VERSES[current_verse_idx]
             state["answers"] = [placements.get(str(i), "") for i in range(len(verse["blanks"]))]
         elif trigger == f"{PREFIX}-submit":
-            verse = VERSES[state["index"]]
+            current_verse_idx = state["verse_order"][state["index"]]
+            verse = VERSES[current_verse_idx]
+
             state["answers"] = [state.get("placements", {}).get(str(i), "") for i in range(len(verse["blanks"]))]
             state["submitted"] = True
-            
-            # Word accuracy points
+
             correct_words = sum(
                 1
                 for value, expected in zip(state["answers"], verse["blanks"])
                 if (value or "").strip().lower() == expected.lower()
             )
-            # Reference identification bonus points (5 pts)
             is_ref_correct = state.get("selected_reference") == verse["reference"]
             round_score = correct_words + (5 if is_ref_correct else 0)
 
@@ -632,7 +641,8 @@ def register_callbacks(app):
                 state["selected_reference"] = None
 
                 if state["index"] < len(VERSES):
-                    next_shuffled = list(VERSES[state["index"]]["blanks"])
+                    next_verse_idx = state["verse_order"][state["index"]]
+                    next_shuffled = list(VERSES[next_verse_idx]["blanks"])
                     random.shuffle(next_shuffled)
                     state["shuffled_bank"] = next_shuffled
 
