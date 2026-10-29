@@ -415,13 +415,16 @@ def _render_game(state):
         total_round_pts = correct_words + ref_points
         next_team = 2 if current_team == 1 else 1
 
+        correct_ref_text = verse['reference']
+        ref_status_msg = "✅ Correct (+5 pts)" if is_ref_correct else f"❌ Incorrect (Correct was: {correct_ref_text})"
+
         content.extend(
             [
                 html.Div(
                     [
                         html.Div(f"Team {current_team} scored {total_round_pts} points this round!"),
                         html.Div(f"• Words: {correct_words}/10 correct ({correct_words} pts)"),
-                        html.Div(f"• Reference: {'✅ Correct (+5 pts)' if is_ref_correct else f'❌ Incorrect (Correct was: {verse[\"reference\"]})'}"),
+                        html.Div(f"• Reference: {ref_status_msg}"),
                     ],
                     style={
                         "marginTop": "1rem",
