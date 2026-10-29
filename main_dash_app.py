@@ -14,6 +14,7 @@ GAMES = {
     "FamilyFeud": ("FamilyFeud", "👨‍👩‍👧‍👦 Family Feud"),
     "GuessWho": ("GuessWho", "👤 Guess Who"),
     "QuoteGuess": ("QuoteGuess", "💭 Quote Guess"),
+    "DoctrinalMastery": ("DoctrinalMastery", "📖 Doctrinal Mastery"),
 }
 
 
