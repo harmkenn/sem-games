@@ -15,6 +15,7 @@ GAMES = {
     "GuessWho": ("GuessWho", "👤 Guess Who"),
     "QuoteGuess": ("QuoteGuess", "💭 Quote Guess"),
     "DoctrinalMastery": ("DoctrinalMastery", "📖 Doctrinal Mastery"),
+    "ScriptureReveal": ("ScriptureReveal", "⏱️ Scripture Reveal"),
 }
 
 
