@@ -33,10 +33,10 @@ def _new_round(state):
     state["elapsed"] = 0.0
     state["started_at"] = None
     state["status"] = "ready"
-    state["guessed_teams"] = []
     state["claimed_team"] = None
     state["result"] = None
     state["placements"] = {}
+    state["selected_reference"] = None
 
 
 def _new_game():
@@ -50,7 +50,6 @@ def _new_game():
         "status": "ready",
         "elapsed": 0.0,
         "started_at": None,
-        "guessed_teams": [],
         "claimed_team": None,
         "result": None,
     }
@@ -71,6 +70,31 @@ def _remaining(state, now=None):
 
 def _normalized_reference(reference):
     return re.sub(r"[\s–—-]+", "", (reference or "").casefold())
+
+
+def _score_placements(verse, placements, visible_words):
+    word_tokens = [
+        token for token in _tokenize(verse["text"]) if re.search(r"\w", token)
+    ]
+    active = _active_placements(placements, visible_words, len(word_tokens))
+    return sum(
+        word_tokens[int(slot)].casefold() == word_tokens[word_index].casefold()
+        for slot, word_index in active.items()
+    )
+
+
+def _round_score(verse, placements, visible_words, reference):
+    word_points = _score_placements(verse, placements, visible_words)
+    reference_points = (
+        5
+        if _normalized_reference(reference) == _normalized_reference(verse["reference"])
+        else 0
+    )
+    return {
+        "word_points": word_points,
+        "reference_points": reference_points,
+        "total": word_points + reference_points,
+    }
 
 
 def _visible_word_indexes(state):
@@ -312,14 +336,13 @@ def _render(state):
     if state["status"] == "ready":
         content.append(html.P("All words are hidden. Start the 60-second clock when both teams are ready."))
     elif state["status"] == "running":
-        content.append(html.P("Call STOP when your team can recite the whole scripture."))
+        content.append(html.P("Call STOP when your team is ready to submit its scripture build."))
         content.append(
             html.Div(
                 [
                     html.Button(
                         f"Team {team} calls STOP",
                         id=f"{PREFIX}-claim-{team}",
-                        disabled=team - 1 in state["guessed_teams"],
                         style={"padding": "0.75rem 1rem"},
                     )
                     for team in (1, 2)
@@ -334,21 +357,20 @@ def _render(state):
         content.extend(
             [
                 html.H3(f"Team {team} called STOP"),
-                html.P("Have them recite the whole scripture, then enter the reference they named."),
+                html.P("Place as many words as you can, select the scripture reference, then submit."),
                 dcc.Dropdown(
                     id=f"{PREFIX}-reference",
                     options=[{"label": reference, "value": reference} for reference in ALL_REFERENCES],
+                    value=state.get("selected_reference"),
                     placeholder="Select scripture reference",
                     clearable=True,
                     searchable=True,
                     style={"maxWidth": "24rem"},
                 ),
-                html.Div(
-                    [
-                        html.Button("Correct reading", id=f"{PREFIX}-correct"),
-                        html.Button("Incorrect reading", id=f"{PREFIX}-incorrect"),
-                    ],
-                    style={"display": "flex", "gap": "0.75rem", "marginTop": "0.75rem"},
+                html.Button(
+                    "Submit",
+                    id=f"{PREFIX}-submit",
+                    style={"marginTop": "0.75rem", "justifySelf": "start"},
                 ),
             ]
         )
@@ -358,7 +380,8 @@ def _render(state):
             [
                 html.H3(
                     f"Team {result['team'] + 1} earned {result['total']} points "
-                    f"({result['time_points']} for time, {result['reference_points']} for reference)."
+                    f"({result['word_points']} correct words, "
+                    f"{result['reference_points']} for reference)."
                 ),
                 html.P(f"Answer: {verse['reference']}"),
                 html.Button("Next scripture", id=f"{PREFIX}-next"),
@@ -387,7 +410,7 @@ def layout():
                     html.H2("Scripture Reveal"),
                     html.P(
                         "Two teams race to recite each scripture as its hidden words appear at random. "
-                        "A correct recitation earns the seconds remaining; naming the right reference adds 5 points."
+                        "Earn 1 point for each correctly placed word and 5 points for the correct reference."
                     ),
                     html.Div(id=f"{PREFIX}-body", children=_render(state)),
                 ],
@@ -470,18 +493,17 @@ def register_callbacks(app):
         Input(f"{PREFIX}-pause", "n_clicks", allow_optional=True),
         Input(f"{PREFIX}-claim-1", "n_clicks", allow_optional=True),
         Input(f"{PREFIX}-claim-2", "n_clicks", allow_optional=True),
-        Input(f"{PREFIX}-correct", "n_clicks", allow_optional=True),
-        Input(f"{PREFIX}-incorrect", "n_clicks", allow_optional=True),
+        Input(f"{PREFIX}-submit", "n_clicks", allow_optional=True),
         Input(f"{PREFIX}-next", "n_clicks", allow_optional=True),
         Input(f"{PREFIX}-restart", "n_clicks", allow_optional=True),
         Input(f"{PREFIX}-timer", "n_intervals"),
         Input(f"{PREFIX}-drag-action", "data"),
-        State(f"{PREFIX}-reference", "value", allow_optional=True),
+        Input(f"{PREFIX}-reference", "value", allow_optional=True),
         State(f"{PREFIX}-state", "data"),
         prevent_initial_call=True,
     )
     def update_game(
-        _start, _pause, _claim_1, _claim_2, _correct, _incorrect,
+        _start, _pause, _claim_1, _claim_2, _submit,
         _next, _restart, _ticks, drag_action, reference, state,
     ):
         state = state or _new_game()
@@ -497,36 +519,24 @@ def register_callbacks(app):
             state["status"] = "paused"
         elif trigger in (f"{PREFIX}-claim-1", f"{PREFIX}-claim-2") and state["status"] == "running":
             team = int(trigger.rsplit("-", 1)[1]) - 1
-            if team not in state["guessed_teams"]:
-                state["elapsed"] = _elapsed(state, now)
-                state["started_at"] = None
-                state["claimed_team"] = team
-                state["status"] = "claimed"
-        elif trigger == f"{PREFIX}-correct" and state["status"] == "claimed":
+            state["elapsed"] = _elapsed(state, now)
+            state["started_at"] = None
+            state["claimed_team"] = team
+            state["status"] = "claimed"
+        elif trigger == f"{PREFIX}-reference":
+            state["selected_reference"] = reference
+        elif trigger == f"{PREFIX}-submit" and state["status"] == "claimed":
             verse = VERSES[state["verse_order"][state["round_index"]]]
-            time_points = ceil(_remaining(state, now))
-            reference_points = (
-                5 if _normalized_reference(reference) == _normalized_reference(verse["reference"]) else 0
+            result = _round_score(
+                verse,
+                state.get("placements"),
+                _visible_word_indexes(state),
+                state.get("selected_reference"),
             )
-            total = time_points + reference_points
             team = state["claimed_team"]
-            state["scores"][team] += total
-            state["result"] = {
-                "team": team,
-                "time_points": time_points,
-                "reference_points": reference_points,
-                "total": total,
-            }
+            state["scores"][team] += result["total"]
+            state["result"] = {"team": team, **result}
             state["status"] = "complete"
-        elif trigger == f"{PREFIX}-incorrect" and state["status"] == "claimed":
-            team = state["claimed_team"]
-            state["guessed_teams"].append(team)
-            state["status"] = (
-                "expired"
-                if _remaining(state, now) <= 0 or len(state["guessed_teams"]) == 2
-                else "running"
-            )
-            state["started_at"] = now if state["status"] == "running" else None
         elif trigger == f"{PREFIX}-timer" and state["status"] == "running":
             if _elapsed(state, now) >= ROUND_SECONDS:
                 state["elapsed"] = ROUND_SECONDS
