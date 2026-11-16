@@ -77,10 +77,12 @@ def _score_placements(verse, placements, visible_words):
         token for token in _tokenize(verse["text"]) if re.search(r"\w", token)
     ]
     active = _active_placements(placements, visible_words, len(word_tokens))
-    return sum(
+    scorable_slots = set(range(len(word_tokens))) - visible_words
+    correct = sum(
         word_tokens[int(slot)].casefold() == word_tokens[word_index].casefold()
         for slot, word_index in active.items()
     )
+    return 2 * correct - len(scorable_slots)
 
 
 def _round_score(verse, placements, visible_words, reference):
@@ -265,9 +267,66 @@ def _render_verse(verse, state):
     )
 
 
+def _render_answer(verse, state):
+    visible_words = _visible_word_indexes(state)
+    word_tokens = [
+        token for token in _tokenize(verse["text"]) if re.search(r"\w", token)
+    ]
+    placements = _active_placements(
+        state.get("placements"), visible_words, len(word_tokens)
+    )
+    answer_tokens = []
+    word_index = 0
+    for token in _tokenize(verse["text"]):
+        if not re.search(r"\w", token):
+            answer_tokens.append(token)
+            continue
+        if word_index in visible_words:
+            color = "#000000"
+        elif (
+            placements.get(str(word_index)) is not None
+            and word_tokens[word_index].casefold()
+            == word_tokens[placements[str(word_index)]].casefold()
+        ):
+            color = "#15803D"
+        else:
+            color = "#DC2626"
+        answer_tokens.append(html.Span(token, style={"color": color}))
+        word_index += 1
+
+    return html.Div(
+        [
+            html.H4("Correct scripture"),
+            html.Div(
+                answer_tokens,
+                style={
+                    "fontSize": "1.5rem",
+                    "lineHeight": 2,
+                    "padding": "1rem",
+                    "backgroundColor": "#F8FAFC",
+                    "border": "2px solid #CBD5E1",
+                    "borderRadius": "12px",
+                },
+            ),
+            html.P(
+                [
+                    html.Span("Auto-revealed", style={"color": "#000000"}),
+                    " · ",
+                    html.Span("Correctly placed", style={"color": "#15803D"}),
+                    " · ",
+                    html.Span("Incorrect or missing", style={"color": "#DC2626"}),
+                ],
+                style={"fontSize": "0.9rem"},
+            ),
+        ]
+    )
+
+
 def _render(state):
     if state["status"] == "complete":
         if state["round_index"] + 1 >= len(state["verse_order"]):
+            verse = VERSES[state["verse_order"][state["round_index"]]]
+            result = state["result"]
             high_score = max(state["scores"])
             winners = [i + 1 for i, score in enumerate(state["scores"]) if score == high_score]
             winner = (
@@ -279,6 +338,13 @@ def _render(state):
                 [
                     html.H2("Game complete"),
                     html.H3(winner),
+                    html.H3(
+                        f"Team {result['team'] + 1} earned {result['total']} points "
+                        f"({result['word_points']} net word points, "
+                        f"{result['reference_points']} for reference)."
+                    ),
+                    html.P(f"Answer: {verse['reference']}"),
+                    _render_answer(verse, state),
                     _scoreboard(state["scores"]),
                     html.Button("Play again", id=f"{PREFIX}-restart"),
                 ]
@@ -321,12 +387,25 @@ def _render(state):
                     },
                 ),
                 timer_control,
+                *(
+                    [
+                        html.Button(
+                            f"Team {team} calls STOP",
+                            id=f"{PREFIX}-claim-{team}",
+                            style={"padding": "0.75rem 1rem"},
+                        )
+                        for team in (1, 2)
+                    ]
+                    if state["status"] == "running"
+                    else []
+                ),
             ],
             style={
                 "display": "flex",
                 "alignItems": "center",
                 "justifyContent": "center",
                 "gap": "1rem",
+                "flexWrap": "wrap",
                 "margin": "1rem 0",
             },
         ),
@@ -337,19 +416,6 @@ def _render(state):
         content.append(html.P("All words are hidden. Start the 60-second clock when both teams are ready."))
     elif state["status"] == "running":
         content.append(html.P("Call STOP when your team is ready to submit its scripture build."))
-        content.append(
-            html.Div(
-                [
-                    html.Button(
-                        f"Team {team} calls STOP",
-                        id=f"{PREFIX}-claim-{team}",
-                        style={"padding": "0.75rem 1rem"},
-                    )
-                    for team in (1, 2)
-                ],
-                style={"display": "flex", "gap": "0.75rem", "flexWrap": "wrap"},
-            )
-        )
     elif state["status"] == "paused":
         content.append(html.P("Clock paused."))
     elif state["status"] == "claimed":
@@ -380,10 +446,11 @@ def _render(state):
             [
                 html.H3(
                     f"Team {result['team'] + 1} earned {result['total']} points "
-                    f"({result['word_points']} correct words, "
+                    f"({result['word_points']} net word points, "
                     f"{result['reference_points']} for reference)."
                 ),
                 html.P(f"Answer: {verse['reference']}"),
+                _render_answer(verse, state),
                 html.Button("Next scripture", id=f"{PREFIX}-next"),
             ]
         )
