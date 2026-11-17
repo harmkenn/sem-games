@@ -12,6 +12,7 @@ from scripture_data import ALL_REFERENCES, VERSES
 
 PREFIX = "sr"
 ROUND_SECONDS = 60
+SECONDS_PER_BLANK = 5
 
 
 def _tokenize(text):
@@ -32,6 +33,10 @@ def _new_round(state):
         state["bank_order"][0], state["bank_order"][1] = state["bank_order"][1], state["bank_order"][0]
     state["elapsed"] = 0.0
     state["started_at"] = None
+    state["placement_started_at"] = None
+    state["placement_seconds"] = 0
+    state["placement_elapsed"] = 0.0
+    state["placement_paused"] = False
     state["status"] = "ready"
     state["claimed_team"] = None
     state["result"] = None
@@ -50,6 +55,10 @@ def _new_game():
         "status": "ready",
         "elapsed": 0.0,
         "started_at": None,
+        "placement_started_at": None,
+        "placement_seconds": 0,
+        "placement_elapsed": 0.0,
+        "placement_paused": False,
         "claimed_team": None,
         "result": None,
     }
@@ -66,6 +75,18 @@ def _elapsed(state, now=None):
 
 def _remaining(state, now=None):
     return max(0.0, ROUND_SECONDS - _elapsed(state, now))
+
+
+def _placement_remaining(state, now=None):
+    started_at = state.get("placement_started_at")
+    elapsed = float(state.get("placement_elapsed", 0.0))
+    if (
+        started_at is not None
+        and state.get("status") == "claimed"
+        and not state.get("placement_paused")
+    ):
+        elapsed += max(0.0, (time.time() if now is None else now) - started_at)
+    return max(0.0, float(state.get("placement_seconds", 0)) - elapsed)
 
 
 def _normalized_reference(reference):
@@ -346,7 +367,6 @@ def _render(state):
                     html.P(f"Answer: {verse['reference']}"),
                     _render_answer(verse, state),
                     _scoreboard(state["scores"]),
-                    html.Button("Play again", id=f"{PREFIX}-restart"),
                 ]
             )
 
@@ -356,12 +376,11 @@ def _render(state):
                 html.H2("Game complete"),
                 html.H3("Time ran out on the final scripture."),
                 _scoreboard(state["scores"]),
-                html.Button("Play again", id=f"{PREFIX}-restart"),
             ]
         )
 
     verse = VERSES[state["verse_order"][state["round_index"]]]
-    remaining = _remaining(state)
+    remaining = _placement_remaining(state) if state["status"] == "claimed" else _remaining(state)
     timer = ceil(remaining)
     timer_color = "#DC2626" if timer <= 5 else "#0F172A"
     timer_control = None
@@ -371,6 +390,11 @@ def _render(state):
         timer_control = html.Button("Pause", id=f"{PREFIX}-pause")
     elif state["status"] == "paused":
         timer_control = html.Button("Resume", id=f"{PREFIX}-start")
+    elif state["status"] == "claimed":
+        timer_control = html.Button(
+            "Resume" if state.get("placement_paused") else "Pause",
+            id=f"{PREFIX}-start" if state.get("placement_paused") else f"{PREFIX}-pause",
+        )
 
     content = [
         html.H3(f"Scripture {state['round_index'] + 1} of {len(state['verse_order'])}"),
@@ -423,7 +447,10 @@ def _render(state):
         content.extend(
             [
                 html.H3(f"Team {team} called STOP"),
-                html.P("Place as many words as you can, select the scripture reference, then submit."),
+                html.P(
+                    f"Place as many words as you can, select the scripture reference, then submit. "
+                    f"You have 5 seconds per blank ({state['placement_seconds']} seconds total)."
+                ),
                 dcc.Dropdown(
                     id=f"{PREFIX}-reference",
                     options=[{"label": reference, "value": reference} for reference in ALL_REFERENCES],
@@ -475,6 +502,7 @@ def layout():
             html.Div(
                 [
                     html.H2("Scripture Reveal"),
+                    html.Button("Reset game", id=f"{PREFIX}-restart"),
                     html.P(
                         "Two teams race to recite each scripture as its hidden words appear at random. "
                         "Earn 1 point for each correctly placed word and 5 points for the correct reference."
@@ -577,7 +605,22 @@ def register_callbacks(app):
         trigger = ctx.triggered_id
         now = time.time()
 
-        if trigger == f"{PREFIX}-start" and state["status"] in ("ready", "paused"):
+        if trigger == f"{PREFIX}-restart":
+            state = _new_game()
+        elif state["status"] == "claimed" and _placement_remaining(state, now) <= 0:
+            verse = VERSES[state["verse_order"][state["round_index"]]]
+            result = _round_score(
+                verse,
+                state.get("placements"),
+                _visible_word_indexes(state),
+                state.get("selected_reference"),
+            )
+            team = state["claimed_team"]
+            state["scores"][team] += result["total"]
+            state["result"] = {"team": team, **result}
+            state["status"] = "complete"
+            state["placement_started_at"] = None
+        elif trigger == f"{PREFIX}-start" and state["status"] in ("ready", "paused"):
             state["started_at"] = now
             state["status"] = "running"
         elif trigger == f"{PREFIX}-pause" and state["status"] == "running":
@@ -589,7 +632,23 @@ def register_callbacks(app):
             state["elapsed"] = _elapsed(state, now)
             state["started_at"] = None
             state["claimed_team"] = team
+            blanks = len(state["reveal_order"]) - len(_visible_word_indexes(state))
+            state["placement_seconds"] = blanks * SECONDS_PER_BLANK
+            state["placement_started_at"] = now
+            state["placement_elapsed"] = 0.0
+            state["placement_paused"] = False
             state["status"] = "claimed"
+        elif trigger == f"{PREFIX}-pause" and state["status"] == "claimed":
+            state["placement_elapsed"] = state["placement_seconds"] - _placement_remaining(state, now)
+            state["placement_started_at"] = None
+            state["placement_paused"] = True
+        elif (
+            trigger == f"{PREFIX}-start"
+            and state["status"] == "claimed"
+            and state.get("placement_paused")
+        ):
+            state["placement_started_at"] = now
+            state["placement_paused"] = False
         elif trigger == f"{PREFIX}-reference":
             state["selected_reference"] = reference
         elif trigger == f"{PREFIX}-submit" and state["status"] == "claimed":
@@ -649,7 +708,7 @@ def register_callbacks(app):
             state["round_index"] += 1
             if state["round_index"] < len(state["verse_order"]):
                 _new_round(state)
-        elif trigger == f"{PREFIX}-restart":
-            state = _new_game()
-
-        return state, _render(state), state["status"] != "running"
+        return state, _render(state), (
+            state["status"] not in ("running", "claimed")
+            or (state["status"] == "claimed" and state.get("placement_paused", False))
+        )
