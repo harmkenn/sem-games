@@ -12,7 +12,7 @@ from scripture_data import ALL_REFERENCES, VERSES
 
 PREFIX = "sr"
 ROUND_SECONDS = 60
-SECONDS_PER_BLANK = 5
+SECONDS_PER_BLANK = 6
 
 
 def _tokenize(text):
@@ -232,26 +232,35 @@ def _render_verse(verse, state):
         else:
             tokens.append(token)
 
-    bank_order = state.get("bank_order", list(range(len(state["reveal_order"]))))
-    word_bank = [word_bank[index] for index in bank_order if index in word_bank]
+    word_bank = [
+        word
+        for _, word in sorted(
+            word_bank.items(), key=lambda item: word_tokens[item[0]].casefold()
+        )
+    ]
 
-    return html.Div(
-        [
-            html.Div(
-                tokens,
-                style={
-                    "fontSize": "1.5rem",
-                    "lineHeight": 2,
-                    "padding": "1.5rem",
-                    "backgroundColor": "#F8FAFC",
-                    "border": "2px solid #CBD5E1",
-                    "borderRadius": "12px",
-                    "whiteSpace": "pre-wrap",
-                    "overflowWrap": "anywhere",
-                    "flex": "2 1 32rem",
-                    "minWidth": 0,
-                },
-            ),
+    board_children = [
+        html.Div(
+            tokens,
+            style={
+                "fontSize": "1.5rem",
+                "lineHeight": 2,
+                "padding": "1.5rem",
+                "backgroundColor": "#F8FAFC",
+                "border": "2px solid #CBD5E1",
+                "borderRadius": "12px",
+                "whiteSpace": "pre-wrap",
+                "overflowWrap": "anywhere",
+                "flex": "2 1 32rem",
+                "minWidth": 0,
+            },
+        )
+    ]
+    placement_paused = state["status"] == "paused" or (
+        state["status"] == "claimed" and state.get("placement_paused", False)
+    )
+    if not placement_paused:
+        board_children.append(
             html.Div(
                 [
                     html.H4(f"Remaining words ({len(word_bank)})", style={"marginTop": 0}),
@@ -275,8 +284,11 @@ def _render_verse(verse, state):
                     html.P("Drag words into the blanks.", style={"fontSize": "0.9rem"}),
                 ],
                 style={"flex": "1 1 15rem", "minWidth": "14rem"},
-            ),
-        ],
+            )
+        )
+
+    return html.Div(
+        board_children,
         id=f"{PREFIX}-board",
         **{"data-can-edit": str(can_edit).lower()},
         style={
